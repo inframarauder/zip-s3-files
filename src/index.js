@@ -22,6 +22,15 @@ exports.zipFilesFromS3 = async (event) => {
 		//get list of files inside prefix
 		const files = await getFilesInsidePrefix(Bucket, Prefix);
 
+		if (files.length <= 1) {
+			return {
+				statusbCode: 400,
+				body: JSON.stringify({
+					message: "At least 2 files must be present to perform zip operation",
+				}),
+			};
+		}
+
 		//get file buffers:
 		let fileBuffers = [];
 		for (let i = 0; i < files.length; i++) {
