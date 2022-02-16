@@ -6,7 +6,8 @@ const {
 } = require("./utils");
 
 exports.handler = async (event) => {
-	const { Bucket, Prefix } = event.body;
+	const { Bucket, Prefix } =
+		typeof event.body === "string" ? JSON.parse(event.body) : event.body;
 
 	//Bucket and Prefix are mandatory
 	if (!Bucket || !Prefix) {
