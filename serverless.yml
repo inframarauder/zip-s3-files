@@ -5,7 +5,7 @@ frameworkVersion: "3"
 provider:
   name: aws
   runtime: nodejs14.x
-  stage: dev
+  stage: prod
   region: ap-south-1
   iam:
     role: arn:aws:iam::302087542857:role/zip-files-s3-lambda-role
