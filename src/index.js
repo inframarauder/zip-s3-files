@@ -5,7 +5,7 @@ const {
 	createZipArchive,
 } = require("./utils");
 
-exports.zipFilesFromS3 = async (event) => {
+exports.handler = async (event) => {
 	const { Bucket, Prefix } = event.body;
 
 	//Bucket and Prefix are mandatory
