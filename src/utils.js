@@ -66,13 +66,21 @@ exports.createZipArchive = (fileBuffers, Bucket, outputFileKey) =>
 //utility method to return the output stream associated with the zip file on s3:
 const getOutputStream = (Bucket, Key) => {
 	const passThroughStream = new stream.PassThrough();
-	s3.upload({ Bucket, Key, Body: passThroughStream }, (err, data) => {
-		if (err) {
-			throw err;
+	s3.upload(
+		{
+			Bucket,
+			Key,
+			Body: passThroughStream,
+			ContentType: "application/zip",
+		},
+		(err) => {
+			if (err) {
+				throw err;
+			}
 		}
-	}).on("httpUploadProgress", (progress) => {
-		const percentage = Math.round((progress.loaded * 100) / progress.total);
-		console.log(`${percentage}% uploaded`);
+	).on("httpUploadProgress", (progress) => {
+		const percentage = Math.round((progress.loaded / progress.total) * 100);
+		console.log(`Uploading ${Key} to s3: ${percentage}%`);
 	});
 
 	return passThroughStream;
