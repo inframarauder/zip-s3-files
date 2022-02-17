@@ -13,8 +13,3 @@ provider:
 functions:
   zipFilesFromS3:
     handler: src/index.handler
-    events:
-      - http:
-          path: /zip-s3-files
-          method: POST
-          cors: true

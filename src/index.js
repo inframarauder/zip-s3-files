@@ -1,68 +1,70 @@
 "use strict";
-const {
-	getFileBufferData,
-	getFilesInsidePrefix,
-	createZipArchive,
-} = require("./utils");
+const AWS = require("aws-sdk");
+const archiver = require("archiver");
+const stream = require("stream");
+
+//initialise s3 client:
+const s3 = new AWS.S3();
 
 exports.handler = async (event) => {
-	const { Bucket, Prefix } =
-		typeof event.body === "string" ? JSON.parse(event.body) : event.body;
-
-	//Bucket and Prefix are mandatory
-	if (!Bucket || !Prefix) {
-		return {
-			statusCode: 400,
-			body: JSON.stringify({
-				message: "Bucket and Prefix are required",
-			}),
-		};
-	}
-
-	console.log(`Fetching files inside ${Prefix} from ${Bucket}`);
-
 	try {
-		//get list of files inside prefix
-		const files = await getFilesInsidePrefix(Bucket, Prefix);
+		const { Bucket, Prefix } = event;
 
-		if (files.length <= 1) {
-			return {
-				statusbCode: 400,
-				body: JSON.stringify({
-					message: "At least 2 files must be present to perform zip operation",
-				}),
-			};
-		}
+		//get all files inside prefix:
+		const s3Data = await s3.listObjectsV2({ Bucket, Prefix }).promise();
+		const files = s3Data.Contents.slice(1).map((file) => file.Key);
 
-		//get file buffers:
-		let fileBuffers = [];
-		for (let i = 0; i < files.length; i++) {
-			//dont need already existing archive.zip (if it exists):
-			if (files[i] !== "archive.zip") {
-				const Key = `${Prefix}/${files[i]}`;
-				const fileBuffer = await getFileBufferData(Bucket, Key);
-				fileBuffers.push(fileBuffer);
-			}
-		}
+		//get read streams for each file
+		const readStreams = files.map((file) => ({
+			stream: s3.getObject({ Bucket, Key: file }).createReadStream(),
+			name: file.split("/").pop(),
+		}));
 
-		const outputFileKey = `${Prefix}/archive.zip`; // this is where the zip file will be stored
+		await new Promise((resolve, reject) => {
+			//get the output stream
+			const outputZipFileKey = `${Prefix}/archive.zip`;
+			const outputStream = getOutputStream(Bucket, outputZipFileKey);
 
-		//create the zip archive:
-		await createZipArchive(fileBuffers, Bucket, outputFileKey);
+			//initialise the zip archive
+			const archive = archiver("zip", { zlib: { level: 9 } });
+			//error handling
+			archive.on("error", (err) => {
+				throw new Error(err);
+			});
 
-		return {
-			statusCode: 200,
-			body: JSON.stringify({
-				message: "Successfully zipped files!",
-			}),
-		};
+			//listen and react to outputStream events
+			outputStream.on("close", resolve);
+			outputStream.on("end", resolve);
+			outputStream.on("error", reject);
+
+			//pipe the zip archive stream to the output stream
+			archive.pipe(outputStream);
+
+			//add each file to the zip archive
+			readStreams.forEach((readStream) => {
+				archive.append(readStream.stream, { name: readStream.name });
+			});
+
+			//finalize the zip archive
+			archive.finalize();
+		}).catch((err) => {
+			throw new Error(err);
+		});
 	} catch (error) {
 		console.error(error);
-		return {
-			statusCode: 500,
-			body: JSON.stringify({
-				message: error.message,
-			}),
-		};
 	}
+};
+
+//util function to get the output stream for the zip file
+const getOutputStream = (Bucket, Key) => {
+	const passThroughStream = new stream.PassThrough();
+	s3.upload({ Bucket, Key, Body: passThroughStream }, (err) => {
+		if (err) {
+			throw new Error(err);
+		} else {
+			console.log("Zip Uploaded to s3");
+		}
+	});
+
+	return passThroughStream;
 };
