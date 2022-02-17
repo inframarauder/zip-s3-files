@@ -19,6 +19,8 @@ exports.handler = async (event) => {
 		};
 	}
 
+	console.log(`Fetching files inside ${Prefix} from ${Bucket}`);
+
 	try {
 		//get list of files inside prefix
 		const files = await getFilesInsidePrefix(Bucket, Prefix);

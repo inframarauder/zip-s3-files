@@ -70,6 +70,10 @@ const getOutputStream = (Bucket, Key) => {
 		if (err) {
 			throw err;
 		}
+	}).on("httpUploadProgress", (progress) => {
+		const percentage = Math.round((progress.loaded * 100) / progress.total);
+		console.log(`${percentage}% uploaded`);
 	});
+
 	return passThroughStream;
 };
