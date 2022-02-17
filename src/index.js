@@ -12,7 +12,11 @@ exports.handler = async (event) => {
 
 		//get all files inside prefix:
 		const s3Data = await s3.listObjectsV2({ Bucket, Prefix }).promise();
-		const files = s3Data.Contents.slice(1).map((file) => file.Key);
+		const files = s3Data.Contents.slice(1)
+			.map((file) => file.Key)
+			.filter((file) => !file.endsWith(".zip"));
+
+		console.log("Files to be zipped", files);
 
 		//get read streams for each file
 		const readStreams = files.map((file) => ({
@@ -21,9 +25,10 @@ exports.handler = async (event) => {
 		}));
 
 		await new Promise((resolve, reject) => {
-			//get the output stream
-			const outputZipFileKey = `${Prefix}/archive.zip`;
-			const outputStream = getOutputStream(Bucket, outputZipFileKey);
+			//create output stream
+			const outputFileKey = `${Prefix}/archive.zip`;
+			const outputStream = streamTo(Bucket, outputFileKey, resolve);
+			outputStream.on("error", reject);
 
 			//initialise the zip archive
 			const archive = archiver("zip", { zlib: { level: 9 } });
@@ -31,11 +36,6 @@ exports.handler = async (event) => {
 			archive.on("error", (err) => {
 				throw new Error(err);
 			});
-
-			//listen and react to outputStream events
-			outputStream.on("close", resolve);
-			outputStream.on("end", resolve);
-			outputStream.on("error", reject);
 
 			//pipe the zip archive stream to the output stream
 			archive.pipe(outputStream);
@@ -55,16 +55,21 @@ exports.handler = async (event) => {
 	}
 };
 
-//util function to get the output stream for the zip file
-const getOutputStream = (Bucket, Key) => {
+const streamTo = (Bucket, Key, resolve) => {
 	const passThroughStream = new stream.PassThrough();
-	s3.upload({ Bucket, Key, Body: passThroughStream }, (err) => {
-		if (err) {
-			throw new Error(err);
-		} else {
-			console.log("Zip Uploaded to s3");
+	s3.upload(
+		{
+			Bucket,
+			Key,
+			Body: passThroughStream,
+			ContentType: "application/zip",
+		},
+		(err) => {
+			if (err) throw err;
+			console.log("Zip uploaded");
+			resolve();
 		}
-	});
+	);
 
 	return passThroughStream;
 };
