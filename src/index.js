@@ -24,7 +24,7 @@ exports.handler = async (event) => {
 			name: file.split("/").pop(),
 		}));
 
-		await new Promise((resolve, reject) => {
+		const s3UploadResponse = await new Promise((resolve, reject) => {
 			//create output stream
 			const outputFileKey = `${Prefix}/archive.zip`;
 			const outputStream = streamTo(Bucket, outputFileKey, resolve);
@@ -50,6 +50,8 @@ exports.handler = async (event) => {
 		}).catch((err) => {
 			throw new Error(err);
 		});
+
+		return s3UploadResponse;
 	} catch (error) {
 		console.error(error);
 	}
@@ -64,10 +66,10 @@ const streamTo = (Bucket, Key, resolve) => {
 			Body: passThroughStream,
 			ContentType: "application/zip",
 		},
-		(err) => {
+		(err, data) => {
 			if (err) throw err;
 			console.log("Zip uploaded");
-			resolve();
+			resolve(data);
 		}
 	);
 
