@@ -6,11 +6,22 @@ const stream = require("stream");
 //initialise s3 client:
 const s3 = new AWS.S3();
 
+//expects Bucket and Prefix to be passed in event.body
 exports.handler = async (event) => {
 	try {
-		const { Bucket, Prefix } = event;
+		const { Bucket, Prefix } =
+			typeof event.body === "string" ? JSON.parse(event.body) : event.body;
 
-		//get all files inside prefix:
+		//validate incoming request body:
+		if (!Bucket || !Prefix) {
+			return {
+				statusCode: 400,
+				body: JSON.stringify({
+					message: "Bucket and Prefix are required",
+				}),
+			};
+		}
+		//get all files inside prefix
 		const s3Data = await s3.listObjectsV2({ Bucket, Prefix }).promise();
 		const files = s3Data.Contents.slice(1)
 			.map((file) => file.Key)
@@ -51,9 +62,23 @@ exports.handler = async (event) => {
 			throw new Error(err);
 		});
 
-		return s3UploadResponse;
+		//return the link to the zip file:
+
+		return {
+			statusCode: 200,
+			body: JSON.stringify({
+				message: "Success",
+				zipFileLink: s3UploadResponse.Location,
+			}),
+		};
 	} catch (error) {
 		console.error(error);
+		return {
+			statusCode: 500,
+			body: JSON.stringify({
+				message: "Internal Server Error",
+			}),
+		};
 	}
 };
 
